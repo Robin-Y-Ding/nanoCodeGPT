@@ -37,6 +37,7 @@ np.random.seed(42)
 # I/O
 out_dir = 'out'
 eval_interval = 2000
+save_interval = 2000
 log_interval = 1
 eval_iters = 200
 eval_only = False # if True, script exits right after the first eval
@@ -81,7 +82,9 @@ config_keys = [k for k,v in globals().items() if not k.startswith('_') and isins
 exec(open('configurator.py').read()) # overrides from command line or config file
 config = {k: globals()[k] for k in config_keys} # will be useful for logging
 # -----------------------------------------------------------------------------
-
+# Sanity checks of the config
+assert save_interval >= eval_interval and save_interval % eval_interval == 0
+assert max_iters >= eval_interval and max_iters % eval_interval == 0
 # various inits, derived attributes, I/O setup
 ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
 if ddp:
@@ -272,13 +275,14 @@ while True:
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         if wandb_log:
             wandb.log({
+                "Step": iter_num,
                 "iter": iter_num,
                 "train/loss": losses['train'],
                 "val/loss": losses['val'],
                 "lr": lr,
                 "mfu": running_mfu*100, # convert to percentage
             })
-        if losses['val'] < best_val_loss or always_save_checkpoint:
+        if iter_num % save_interval == 0 and (losses['val'] < best_val_loss or always_save_checkpoint):
             best_val_loss = losses['val']
             if iter_num > 0:
                 checkpoint = {
@@ -336,6 +340,14 @@ while True:
             mfu = raw_model.estimate_mfu(batch_size * gradient_accumulation_steps, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9*running_mfu + 0.1*mfu
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%")
+        if wandb_log:
+            wandb.log({
+                "Step": iter_num,
+                "iter": iter_num,
+                "train/loss": lossf,
+                "lr": lr,
+                "mfu": running_mfu*100, # convert to percentage
+            })
     iter_num += 1
     local_iter_num += 1
 
