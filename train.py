@@ -80,7 +80,13 @@ compile = True # use PyTorch 2.0 to compile the model to be faster
 # -----------------------------------------------------------------------------
 config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
 exec(open('configurator.py').read()) # overrides from command line or config file
+# force lr_decay_iters to be max_iters to avoid discrepancies
+lr_decay_iters = max_iters
 config = {k: globals()[k] for k in config_keys} # will be useful for logging
+# log the config
+print("config:")
+for k,v in config.items():
+    print(f"  {k}: {v}")
 # -----------------------------------------------------------------------------
 # Sanity checks of the config
 assert save_interval >= eval_interval and save_interval % eval_interval == 0
